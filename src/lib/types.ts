@@ -50,3 +50,16 @@ export interface StreamlinkProxyResponse {
   token: string;
   expiresAt: string;
 }
+
+// Supabase related types
+export interface StreamlinkSession {
+  id: string;
+  stream_id: string;
+  token: string;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface SupabaseStream extends Omit<Stream, 'streamlinkOptions'> {
+  streamlink_options?: string; // JSON string of StreamlinkOptions
+}

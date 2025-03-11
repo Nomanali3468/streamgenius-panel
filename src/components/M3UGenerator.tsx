@@ -50,6 +50,7 @@ export function M3UGenerator() {
         description: "M3U playlist generated successfully",
       });
     } catch (error) {
+      console.error("Error generating M3U playlist:", error);
       toast({
         title: "Error",
         description: "Failed to generate M3U playlist",
