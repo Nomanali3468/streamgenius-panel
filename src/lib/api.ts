@@ -1,6 +1,6 @@
 
 import { getToken } from './auth';
-import { Stream, AuthResponse, M3UPlaylist } from './types';
+import { Stream, AuthResponse, M3UPlaylist, StreamerType } from './types';
 
 // In a real application, this would point to your actual API URL
 const API_URL = 'https://api.example.com';
@@ -15,6 +15,8 @@ const mockStreams: Stream[] = [
     category: 'Sports',
     logo: 'https://via.placeholder.com/150',
     isActive: true,
+    useStreamlink: false,
+    streamerType: 'direct',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -25,26 +27,32 @@ const mockStreams: Stream[] = [
     category: 'News',
     logo: 'https://via.placeholder.com/150',
     isActive: true,
+    useStreamlink: false,
+    streamerType: 'direct',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: '3',
-    name: 'Movie Channel',
-    url: 'http://example.com/stream3',
-    category: 'Movies',
+    name: 'YouTube Live',
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    category: 'Entertainment',
     logo: 'https://via.placeholder.com/150',
     isActive: true,
+    useStreamlink: true,
+    streamerType: 'youtube',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: '4',
-    name: 'Entertainment Plus',
-    url: 'http://example.com/stream4',
-    category: 'Entertainment',
+    name: 'Twitch Stream',
+    url: 'https://www.twitch.tv/twitchpresents',
+    category: 'Gaming',
     logo: 'https://via.placeholder.com/150',
     isActive: true,
+    useStreamlink: true,
+    streamerType: 'twitch',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -55,6 +63,8 @@ const mockStreams: Stream[] = [
     category: 'Documentaries',
     logo: 'https://via.placeholder.com/150',
     isActive: true,
+    useStreamlink: false,
+    streamerType: 'direct',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -76,6 +86,27 @@ const authHeaders = () => {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+};
+
+// Generate a streamlink URL for a stream
+const getStreamlinkUrl = (stream: Stream): string => {
+  // In a real application, this would be a URL to your backend service
+  // that would execute streamlink and return the stream
+  // For now, we'll just return a mock URL
+  if (!stream.useStreamlink) {
+    return stream.url;
+  }
+  
+  // This is a mock URL format - in a real application, this would point to your backend
+  // which would then use streamlink to extract the stream
+  const baseUrl = 'http://localhost:3001/api/streamlink';
+  const params = new URLSearchParams({
+    url: stream.url,
+    type: stream.streamerType || 'other',
+    quality: 'best',
+  });
+  
+  return `${baseUrl}?${params.toString()}`;
 };
 
 // Mock API functions 
@@ -162,12 +193,54 @@ export const generateM3U = async (): Promise<M3UPlaylist> => {
   let content = '#EXTM3U\n';
   
   mockStreams.forEach(stream => {
+    // Use streamlink URL if the stream uses streamlink
+    const streamUrl = stream.useStreamlink ? getStreamlinkUrl(stream) : stream.url;
+    
     content += `#EXTINF:-1 tvg-id="${stream.id}" tvg-name="${stream.name}" tvg-logo="${stream.logo || ''}" group-title="${stream.category}",${stream.name}\n`;
-    content += `${stream.url}\n`;
+    content += `${streamUrl}\n`;
   });
   
   return simulateRequest({
     content,
     filename: `iptv-playlist-${new Date().toISOString().split('T')[0]}.m3u`
   });
+};
+
+// Function to check if Streamlink is supported for a specific URL
+export const isStreamlinkSupported = (url: string): boolean => {
+  // Check if the URL is from a supported streamer
+  // This is a simplified check - in a real application, you would have 
+  // more comprehensive detection logic
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    return true;
+  }
+  
+  if (url.includes('twitch.tv')) {
+    return true;
+  }
+  
+  if (url.includes('dailymotion.com')) {
+    return true;
+  }
+  
+  // Add more checks for other supported platforms
+  
+  return false;
+};
+
+// Function to detect streamer type based on URL
+export const detectStreamerType = (url: string): StreamerType => {
+  if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    return 'youtube';
+  }
+  
+  if (url.includes('twitch.tv')) {
+    return 'twitch';
+  }
+  
+  if (url.includes('dailymotion.com')) {
+    return 'dailymotion';
+  }
+  
+  return 'direct';
 };

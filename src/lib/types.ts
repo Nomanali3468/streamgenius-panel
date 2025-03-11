@@ -16,9 +16,13 @@ export interface Stream {
   category: string;
   logo?: string;
   isActive: boolean;
+  useStreamlink?: boolean;
+  streamerType?: StreamerType;
   createdAt: string;
   updatedAt: string;
 }
+
+export type StreamerType = 'youtube' | 'twitch' | 'dailymotion' | 'direct' | 'other';
 
 export interface AuthResponse {
   user: User;
@@ -28,4 +32,12 @@ export interface AuthResponse {
 export interface M3UPlaylist {
   content: string;
   filename: string;
+}
+
+export interface StreamlinkOptions {
+  quality?: string;
+  useProxy?: boolean;
+  proxyUrl?: string;
+  useUserAgent?: boolean;
+  userAgent?: string;
 }

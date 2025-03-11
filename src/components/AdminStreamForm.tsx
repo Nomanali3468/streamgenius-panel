@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import { X } from "lucide-react";
+import { X, Download, ExternalLink } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,8 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
-import { Stream } from "@/lib/types";
+import { Stream, StreamerType } from "@/lib/types";
+import { detectStreamerType, isStreamlinkSupported } from "@/lib/api";
 
 const CATEGORIES = [
   "Sports",
@@ -34,7 +40,16 @@ const CATEGORIES = [
   "Documentaries",
   "Kids",
   "Music",
+  "Gaming",
   "Other",
+];
+
+const STREAMER_TYPES: { value: StreamerType; label: string }[] = [
+  { value: "direct", label: "Direct URL" },
+  { value: "youtube", label: "YouTube" },
+  { value: "twitch", label: "Twitch" },
+  { value: "dailymotion", label: "Dailymotion" },
+  { value: "other", label: "Other" },
 ];
 
 interface AdminStreamFormProps {
@@ -59,11 +74,36 @@ export function AdminStreamForm({
       category: stream?.category || "Other",
       logo: stream?.logo || "",
       isActive: stream?.isActive !== false,
+      useStreamlink: stream?.useStreamlink || false,
+      streamerType: stream?.streamerType || "direct",
     },
   });
   
+  const url = watch("url");
   const category = watch("category");
   const logo = watch("logo");
+  const useStreamlink = watch("useStreamlink");
+  const streamerType = watch("streamerType");
+  
+  const [streamlinkSupported, setStreamlinkSupported] = useState(false);
+  
+  // Update streamlink support status when URL changes
+  useEffect(() => {
+    if (url) {
+      const supported = isStreamlinkSupported(url);
+      setStreamlinkSupported(supported);
+      
+      // If the URL suggests a specific streamer type and it's different from the current one
+      if (supported) {
+        const detectedType = detectStreamerType(url);
+        if (detectedType !== streamerType) {
+          setValue("streamerType", detectedType);
+        }
+      }
+    } else {
+      setStreamlinkSupported(false);
+    }
+  }, [url, streamerType, setValue]);
   
   useEffect(() => {
     if (open) {
@@ -73,7 +113,14 @@ export function AdminStreamForm({
         category: stream?.category || "Other",
         logo: stream?.logo || "",
         isActive: stream?.isActive !== false,
+        useStreamlink: stream?.useStreamlink || false,
+        streamerType: stream?.streamerType || "direct",
       });
+      
+      // Check streamlink support for initial URL
+      if (stream?.url) {
+        setStreamlinkSupported(isStreamlinkSupported(stream.url));
+      }
     }
   }, [open, stream, reset]);
   
@@ -114,6 +161,12 @@ export function AdminStreamForm({
                 placeholder="https://example.com/stream"
                 {...register("url", { required: true })}
               />
+              {streamlinkSupported && (
+                <div className="text-xs text-primary flex items-center gap-1 mt-1">
+                  <Download className="h-3 w-3" />
+                  Streamlink supported for this URL
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -135,6 +188,51 @@ export function AdminStreamForm({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="useStreamlink"
+                  checked={useStreamlink}
+                  onCheckedChange={(checked) => setValue("useStreamlink", checked)}
+                  disabled={!streamlinkSupported}
+                />
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="useStreamlink">Use Streamlink</Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <ExternalLink className="h-4 w-4 text-muted-foreground cursor-help" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      <p>Streamlink extracts the stream from platforms like YouTube and Twitch. Requires a backend service running Streamlink.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+              
+              {useStreamlink && (
+                <div className="space-y-2">
+                  <Label htmlFor="streamerType">Streamer Type</Label>
+                  <Select
+                    value={streamerType}
+                    onValueChange={(value) => setValue("streamerType", value as StreamerType)}
+                  >
+                    <SelectTrigger id="streamerType">
+                      <SelectValue placeholder="Select streamer type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {STREAMER_TYPES.map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             
             <div className="space-y-2">
