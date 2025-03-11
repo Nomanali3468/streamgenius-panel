@@ -1,7 +1,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Download, FileDown, Loader2, Info } from "lucide-react";
+import { Download, FileDown, Loader2, Info, Lock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -84,6 +84,19 @@ export function M3UGenerator() {
               <p className="text-muted-foreground text-xs">
                 This playlist includes streams that use Streamlink to extract content from platforms like YouTube and Twitch. 
                 These streams require a backend service running Streamlink to function properly.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <div className="bg-muted rounded-md p-3 mb-4 text-sm">
+          <div className="flex items-start gap-2">
+            <Lock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="font-medium mb-1">Secure Streamlink Proxy</p>
+              <p className="text-muted-foreground text-xs">
+                Streams that use Streamlink are now routed through a secure proxy that generates temporary tokens.
+                This prevents direct access to the Streamlink server and improves security.
               </p>
             </div>
           </div>

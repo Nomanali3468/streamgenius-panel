@@ -18,6 +18,7 @@ export interface Stream {
   isActive: boolean;
   useStreamlink?: boolean;
   streamerType?: StreamerType;
+  streamlinkOptions?: StreamlinkOptions;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,4 +41,12 @@ export interface StreamlinkOptions {
   proxyUrl?: string;
   useUserAgent?: boolean;
   userAgent?: string;
+  customArgs?: string;
+  secureTokenEnabled?: boolean;
+}
+
+export interface StreamlinkProxyResponse {
+  proxyUrl: string;
+  token: string;
+  expiresAt: string;
 }
