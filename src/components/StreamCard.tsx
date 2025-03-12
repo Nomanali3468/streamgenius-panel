@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { MoreHorizontal, Play, Edit, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
@@ -18,17 +17,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Stream } from "@/lib/types";
 import { isAdmin } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-interface StreamCardProps {
-  stream: Stream;
-  onEdit?: (stream: Stream) => void;
-  onDelete?: (stream: Stream) => void;
-}
+/**
+ * @typedef {import('@/lib/types').Stream} Stream
+ */
 
-export function StreamCard({ stream, onEdit, onDelete }: StreamCardProps) {
+/**
+ * @param {Object} props
+ * @param {Stream} props.stream
+ * @param {function(Stream): void} [props.onEdit]
+ * @param {function(Stream): void} [props.onDelete]
+ */
+export function StreamCard({ stream, onEdit, onDelete }) {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
   
