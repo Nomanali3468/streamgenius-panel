@@ -14,7 +14,7 @@ const client = new MongoClient(uri, {
 });
 
 // Connection state
-let clientPromise: Promise<MongoClient>;
+let clientPromise;
 
 // Reuse the connection when in production
 if (process.env.NODE_ENV === 'production') {
@@ -35,7 +35,7 @@ export async function getDb() {
 }
 
 // Convert MongoDB _id to id in returned objects
-export function normalizeId<T extends { _id?: any }>(doc: T): Omit<T, '_id'> & { id: string } {
+export function normalizeId(doc) {
   // Create a new object without the _id field
   const { _id, ...rest } = doc;
   
@@ -43,5 +43,5 @@ export function normalizeId<T extends { _id?: any }>(doc: T): Omit<T, '_id'> & {
   return {
     ...rest,
     id: _id.toString(),
-  } as any;
+  };
 }

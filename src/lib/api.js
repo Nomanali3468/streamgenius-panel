@@ -1,12 +1,5 @@
+
 import { getToken } from './auth';
-import { 
-  Stream, 
-  AuthResponse, 
-  M3UPlaylist, 
-  StreamerType, 
-  StreamlinkOptions, 
-  StreamlinkProxyResponse 
-} from './types';
 import { getDb, normalizeId } from './mongodb';
 import { ObjectId } from 'mongodb';
 
@@ -14,7 +7,7 @@ import { ObjectId } from 'mongodb';
 const STREAMLINK_PROXY_URL = import.meta.env.VITE_STREAMLINK_PROXY_URL || 'http://localhost:3001/api/proxy/streamlink';
 
 // Helper function to simulate API request for mock data fallback
-const simulateRequest = <T>(data: T, delay = 500): Promise<T> => {
+const simulateRequest = (data, delay = 500) => {
   return new Promise((resolve) => {
     setTimeout(() => {
       resolve(data);
@@ -32,7 +25,7 @@ const authHeaders = () => {
 };
 
 // Generate a streamlink URL for a stream
-const getStreamlinkUrl = async (stream: Stream): Promise<string> => {
+const getStreamlinkUrl = async (stream) => {
   // Check if stream uses secure proxy
   if (stream.streamlinkOptions?.useProxy && stream.streamlinkOptions?.secureTokenEnabled) {
     try {
@@ -72,7 +65,7 @@ const getStreamlinkUrl = async (stream: Stream): Promise<string> => {
 
 // Mock API functions - these will use MongoDB when available
 
-export const login = async (username: string, password: string): Promise<AuthResponse> => {
+export const login = async (username, password) => {
   // In a real app, this would be an actual API call to MongoDB
   if (username === 'admin' && password === 'admin') {
     return simulateRequest({
@@ -100,7 +93,7 @@ export const login = async (username: string, password: string): Promise<AuthRes
   return Promise.reject(new Error('Invalid credentials'));
 };
 
-export const getStreams = async (): Promise<Stream[]> => {
+export const getStreams = async () => {
   try {
     const db = await getDb();
     const streamsCollection = db.collection('streams');
@@ -113,7 +106,7 @@ export const getStreams = async (): Promise<Stream[]> => {
         streamlinkOptions: normalized.streamlinkOptions ?? undefined,
         createdAt: normalized.createdAt ?? new Date().toISOString(),
         updatedAt: normalized.updatedAt ?? new Date().toISOString(),
-      } as Stream;
+      };
     });
   } catch (error) {
     console.error("Error fetching streams from MongoDB:", error);
@@ -122,7 +115,7 @@ export const getStreams = async (): Promise<Stream[]> => {
   }
 };
 
-export const getStream = async (id: string): Promise<Stream> => {
+export const getStream = async (id) => {
   try {
     const db = await getDb();
     const streamsCollection = db.collection('streams');
@@ -138,7 +131,7 @@ export const getStream = async (id: string): Promise<Stream> => {
       streamlinkOptions: normalized.streamlinkOptions ?? undefined,
       createdAt: normalized.createdAt ?? new Date().toISOString(),
       updatedAt: normalized.updatedAt ?? new Date().toISOString(),
-    } as Stream;
+    };
   } catch (error) {
     console.error("Error fetching stream from MongoDB:", error);
     // Fallback to mock data
@@ -150,7 +143,7 @@ export const getStream = async (id: string): Promise<Stream> => {
   }
 };
 
-export const createStream = async (stream: Omit<Stream, 'id' | 'createdAt' | 'updatedAt'>): Promise<Stream> => {
+export const createStream = async (stream) => {
   try {
     const db = await getDb();
     const streamsCollection = db.collection('streams');
@@ -167,11 +160,11 @@ export const createStream = async (stream: Omit<Stream, 'id' | 'createdAt' | 'up
     return {
       ...newStream,
       id: result.insertedId.toString()
-    } as Stream;
+    };
   } catch (error) {
     console.error("Error creating stream in MongoDB:", error);
     // Fallback to mock behavior
-    const newStream: Stream = {
+    const newStream = {
       ...stream,
       id: Date.now().toString(),
       createdAt: new Date().toISOString(),
@@ -182,7 +175,7 @@ export const createStream = async (stream: Omit<Stream, 'id' | 'createdAt' | 'up
   }
 };
 
-export const updateStream = async (id: string, stream: Partial<Stream>): Promise<Stream> => {
+export const updateStream = async (id, stream) => {
   try {
     const db = await getDb();
     const streamsCollection = db.collection('streams');
@@ -207,7 +200,7 @@ export const updateStream = async (id: string, stream: Partial<Stream>): Promise
       streamlinkOptions: normalized.streamlinkOptions ?? undefined,
       createdAt: normalized.createdAt ?? now,
       updatedAt: now,
-    } as Stream;
+    };
   } catch (error) {
     console.error("Error updating stream in MongoDB:", error);
     // Fallback to mock behavior
@@ -216,7 +209,7 @@ export const updateStream = async (id: string, stream: Partial<Stream>): Promise
       return Promise.reject(new Error('Stream not found'));
     }
     
-    const updatedStream: Stream = {
+    const updatedStream = {
       ...existingStream,
       ...stream,
       updatedAt: new Date().toISOString(),
@@ -226,7 +219,7 @@ export const updateStream = async (id: string, stream: Partial<Stream>): Promise
   }
 };
 
-export const deleteStream = async (id: string): Promise<void> => {
+export const deleteStream = async (id) => {
   try {
     const db = await getDb();
     const streamsCollection = db.collection('streams');
@@ -242,7 +235,7 @@ export const deleteStream = async (id: string): Promise<void> => {
   }
 };
 
-export const generateM3U = async (): Promise<M3UPlaylist> => {
+export const generateM3U = async () => {
   try {
     // Get all active streams
     const db = await getDb();
@@ -257,7 +250,7 @@ export const generateM3U = async (): Promise<M3UPlaylist> => {
       return {
         ...normalized,
         streamlinkOptions: normalized.streamlinkOptions ?? undefined,
-      } as Stream;
+      };
     });
     
     // Generate entries for each stream
@@ -317,7 +310,7 @@ export const generateM3U = async (): Promise<M3UPlaylist> => {
 };
 
 // Create a streamlink proxy token for a stream
-export const createStreamlinkProxy = async (streamId: string): Promise<StreamlinkProxyResponse> => {
+export const createStreamlinkProxy = async (streamId) => {
   try {
     const db = await getDb();
     const streamsCollection = db.collection('streams');
@@ -369,7 +362,7 @@ export const createStreamlinkProxy = async (streamId: string): Promise<Streamlin
 };
 
 // Function to check if Streamlink is supported for a specific URL
-export const isStreamlinkSupported = (url: string): boolean => {
+export const isStreamlinkSupported = (url) => {
   // Check if the URL is from a supported streamer
   // This is a simplified check - in a real application, you would have 
   // more comprehensive detection logic
@@ -391,7 +384,7 @@ export const isStreamlinkSupported = (url: string): boolean => {
 };
 
 // Function to detect streamer type based on URL
-export const detectStreamerType = (url: string): StreamerType => {
+export const detectStreamerType = (url) => {
   if (url.includes('youtube.com') || url.includes('youtu.be')) {
     return 'youtube';
   }
@@ -408,7 +401,7 @@ export const detectStreamerType = (url: string): StreamerType => {
 };
 
 // Mock streams for fallback when MongoDB is not available
-const mockStreams: Stream[] = [
+const mockStreams = [
   {
     id: '1',
     name: 'Sports Channel',

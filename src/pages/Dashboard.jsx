@@ -9,12 +9,11 @@ import { StreamList } from "@/components/StreamList";
 import { M3UGenerator } from "@/components/M3UGenerator";
 import { AnimatedTransition } from "@/components/AnimatedTransition";
 import { getStreams } from "@/lib/api";
-import { Stream } from "@/lib/types";
 import { isAuthenticated } from "@/lib/auth";
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [streams, setStreams] = useState<Stream[]>([]);
+  const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
   
   useEffect(() => {

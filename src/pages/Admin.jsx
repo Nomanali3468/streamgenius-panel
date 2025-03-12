@@ -9,7 +9,6 @@ import { StreamList } from "@/components/StreamList";
 import { AdminStreamForm } from "@/components/AdminStreamForm";
 import { AnimatedTransition } from "@/components/AnimatedTransition";
 import { getStreams, createStream, updateStream, deleteStream } from "@/lib/api";
-import { Stream } from "@/lib/types";
 import { isAdmin, isAuthenticated } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -26,12 +25,12 @@ import {
 const Admin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [streams, setStreams] = useState<Stream[]>([]);
+  const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingStream, setEditingStream] = useState<Stream | undefined>(undefined);
+  const [editingStream, setEditingStream] = useState(undefined);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [streamToDelete, setStreamToDelete] = useState<Stream | null>(null);
+  const [streamToDelete, setStreamToDelete] = useState(null);
   
   useEffect(() => {
     // Check if user is authenticated and is admin
@@ -65,12 +64,12 @@ const Admin = () => {
     setIsFormOpen(true);
   };
   
-  const handleEditStream = (stream: Stream) => {
+  const handleEditStream = (stream) => {
     setEditingStream(stream);
     setIsFormOpen(true);
   };
   
-  const handleDeleteStream = (stream: Stream) => {
+  const handleDeleteStream = (stream) => {
     setStreamToDelete(stream);
     setDeleteDialogOpen(true);
   };
@@ -100,9 +99,9 @@ const Admin = () => {
     }
   };
   
-  const handleSaveStream = async (data: Partial<Stream>) => {
+  const handleSaveStream = async (data) => {
     try {
-      let updatedStream: Stream;
+      let updatedStream;
       
       if (data.id) {
         // Update existing stream
@@ -117,7 +116,7 @@ const Admin = () => {
         });
       } else {
         // Create new stream
-        updatedStream = await createStream(data as Omit<Stream, "id" | "createdAt" | "updatedAt">);
+        updatedStream = await createStream(data);
         setStreams([...streams, updatedStream]);
         
         toast({
