@@ -7,17 +7,11 @@ import {
   StreamlinkOptions, 
   StreamlinkProxyResponse 
 } from './types';
-import { 
-  fetchStreams, 
-  fetchStream, 
-  createSupabaseStream, 
-  updateSupabaseStream, 
-  deleteSupabaseStream, 
-  createStreamlinkProxy 
-} from './supabase';
+import { getDb, normalizeId } from './mongodb';
+import { ObjectId } from 'mongodb';
 
-// In a real application, this would point to your actual API URL
-const API_URL = import.meta.env.VITE_API_URL || 'https://api.example.com';
+// Streamlink proxy URL from environment
+const STREAMLINK_PROXY_URL = import.meta.env.VITE_STREAMLINK_PROXY_URL || 'http://localhost:3001/api/proxy/streamlink';
 
 // Helper function to simulate API request for mock data fallback
 const simulateRequest = <T>(data: T, delay = 500): Promise<T> => {
@@ -51,13 +45,12 @@ const getStreamlinkUrl = async (stream: Stream): Promise<string> => {
     }
   }
   
-  // If not using secure proxy, use the original direct streamlink URL approach
+  // If not using streamlink, use the original URL
   if (!stream.useStreamlink) {
     return stream.url;
   }
   
   // This is for backward compatibility or non-secure proxy
-  const baseUrl = `${API_URL}/api/streamlink`;
   const params = new URLSearchParams({
     url: stream.url,
     type: stream.streamerType || 'other',
@@ -74,13 +67,13 @@ const getStreamlinkUrl = async (stream: Stream): Promise<string> => {
     params.append('userAgent', stream.streamlinkOptions.userAgent);
   }
   
-  return `${baseUrl}?${params.toString()}`;
+  return `${STREAMLINK_PROXY_URL}?${params.toString()}`;
 };
 
-// Mock API functions - these will use Supabase when available
+// Mock API functions - these will use MongoDB when available
 
 export const login = async (username: string, password: string): Promise<AuthResponse> => {
-  // In a real app, this would be an actual API call
+  // In a real app, this would be an actual API call to MongoDB
   if (username === 'admin' && password === 'admin') {
     return simulateRequest({
       user: {
@@ -109,9 +102,21 @@ export const login = async (username: string, password: string): Promise<AuthRes
 
 export const getStreams = async (): Promise<Stream[]> => {
   try {
-    return await fetchStreams();
+    const db = await getDb();
+    const streamsCollection = db.collection('streams');
+    const streams = await streamsCollection.find({}).toArray();
+    
+    return streams.map(stream => {
+      const normalized = normalizeId(stream);
+      return {
+        ...normalized,
+        streamlinkOptions: normalized.streamlinkOptions ?? undefined,
+        createdAt: normalized.createdAt ?? new Date().toISOString(),
+        updatedAt: normalized.updatedAt ?? new Date().toISOString(),
+      } as Stream;
+    });
   } catch (error) {
-    console.error("Error fetching streams from Supabase:", error);
+    console.error("Error fetching streams from MongoDB:", error);
     // Fallback to mock data
     return simulateRequest(mockStreams);
   }
@@ -119,9 +124,23 @@ export const getStreams = async (): Promise<Stream[]> => {
 
 export const getStream = async (id: string): Promise<Stream> => {
   try {
-    return await fetchStream(id);
+    const db = await getDb();
+    const streamsCollection = db.collection('streams');
+    const stream = await streamsCollection.findOne({ _id: new ObjectId(id) });
+    
+    if (!stream) {
+      throw new Error('Stream not found');
+    }
+    
+    const normalized = normalizeId(stream);
+    return {
+      ...normalized,
+      streamlinkOptions: normalized.streamlinkOptions ?? undefined,
+      createdAt: normalized.createdAt ?? new Date().toISOString(),
+      updatedAt: normalized.updatedAt ?? new Date().toISOString(),
+    } as Stream;
   } catch (error) {
-    console.error("Error fetching stream from Supabase:", error);
+    console.error("Error fetching stream from MongoDB:", error);
     // Fallback to mock data
     const stream = mockStreams.find(s => s.id === id);
     if (!stream) {
@@ -133,9 +152,24 @@ export const getStream = async (id: string): Promise<Stream> => {
 
 export const createStream = async (stream: Omit<Stream, 'id' | 'createdAt' | 'updatedAt'>): Promise<Stream> => {
   try {
-    return await createSupabaseStream(stream);
+    const db = await getDb();
+    const streamsCollection = db.collection('streams');
+    
+    const now = new Date().toISOString();
+    const newStream = {
+      ...stream,
+      createdAt: now,
+      updatedAt: now
+    };
+    
+    const result = await streamsCollection.insertOne(newStream);
+    
+    return {
+      ...newStream,
+      id: result.insertedId.toString()
+    } as Stream;
   } catch (error) {
-    console.error("Error creating stream in Supabase:", error);
+    console.error("Error creating stream in MongoDB:", error);
     // Fallback to mock behavior
     const newStream: Stream = {
       ...stream,
@@ -150,9 +184,32 @@ export const createStream = async (stream: Omit<Stream, 'id' | 'createdAt' | 'up
 
 export const updateStream = async (id: string, stream: Partial<Stream>): Promise<Stream> => {
   try {
-    return await updateSupabaseStream(id, stream);
+    const db = await getDb();
+    const streamsCollection = db.collection('streams');
+    
+    // Remove id from the update object as it should not be modified
+    const { id: _, ...updateData } = stream;
+    
+    const now = new Date().toISOString();
+    const result = await streamsCollection.findOneAndUpdate(
+      { _id: new ObjectId(id) },
+      { $set: { ...updateData, updatedAt: now } },
+      { returnDocument: 'after' }
+    );
+    
+    if (!result) {
+      throw new Error('Stream not found');
+    }
+    
+    const normalized = normalizeId(result);
+    return {
+      ...normalized,
+      streamlinkOptions: normalized.streamlinkOptions ?? undefined,
+      createdAt: normalized.createdAt ?? now,
+      updatedAt: now,
+    } as Stream;
   } catch (error) {
-    console.error("Error updating stream in Supabase:", error);
+    console.error("Error updating stream in MongoDB:", error);
     // Fallback to mock behavior
     const existingStream = mockStreams.find(s => s.id === id);
     if (!existingStream) {
@@ -171,9 +228,15 @@ export const updateStream = async (id: string, stream: Partial<Stream>): Promise
 
 export const deleteStream = async (id: string): Promise<void> => {
   try {
-    await deleteSupabaseStream(id);
+    const db = await getDb();
+    const streamsCollection = db.collection('streams');
+    const result = await streamsCollection.deleteOne({ _id: new ObjectId(id) });
+    
+    if (result.deletedCount === 0) {
+      throw new Error('Stream not found');
+    }
   } catch (error) {
-    console.error("Error deleting stream from Supabase:", error);
+    console.error("Error deleting stream from MongoDB:", error);
     // Fallback to mock behavior
     return simulateRequest(undefined);
   }
@@ -181,15 +244,49 @@ export const deleteStream = async (id: string): Promise<void> => {
 
 export const generateM3U = async (): Promise<M3UPlaylist> => {
   try {
-    const content = await generateSupabaseM3U();
+    // Get all active streams
+    const db = await getDb();
+    const streamsCollection = db.collection('streams');
+    const streams = await streamsCollection.find({ isActive: true }).toArray();
+    
+    let content = '#EXTM3U\n';
+
+    // Normalize MongoDB documents
+    const normalizedStreams = streams.map(stream => {
+      const normalized = normalizeId(stream);
+      return {
+        ...normalized,
+        streamlinkOptions: normalized.streamlinkOptions ?? undefined,
+      } as Stream;
+    });
+    
+    // Generate entries for each stream
+    for (const stream of normalizedStreams) {
+      if (!stream.isActive) continue;
+      
+      // Get the appropriate URL (streamlink or direct)
+      const streamUrl = stream.useStreamlink 
+        ? await getStreamlinkUrl(stream) 
+        : stream.url;
+      
+      // Add comment line for Streamlink-proxy streams to help with debugging
+      if (stream.useStreamlink && stream.streamlinkOptions?.useProxy) {
+        content += `#EXTVLCOPT:http-referrer=${stream.url}\n`;
+        content += `#EXTVLCOPT:network-caching=1000\n`;
+      }
+      
+      content += `#EXTINF:-1 tvg-id="${stream.id}" tvg-name="${stream.name}" tvg-logo="${stream.logo || ''}" group-title="${stream.category}",${stream.name}\n`;
+      content += `${streamUrl}\n`;
+    }
+    
     return {
       content,
       filename: `iptv-playlist-${new Date().toISOString().split('T')[0]}.m3u`
     };
   } catch (error) {
-    console.error("Error generating M3U from Supabase:", error);
+    console.error("Error generating M3U:", error);
     
-    // Fallback to client-side generation
+    // Fallback to client-side generation with mock data
     let content = '#EXTM3U\n';
     
     const streams = await getStreams();
@@ -215,6 +312,58 @@ export const generateM3U = async (): Promise<M3UPlaylist> => {
     return {
       content,
       filename: `iptv-playlist-${new Date().toISOString().split('T')[0]}.m3u`
+    };
+  }
+};
+
+// Create a streamlink proxy token for a stream
+export const createStreamlinkProxy = async (streamId: string): Promise<StreamlinkProxyResponse> => {
+  try {
+    const db = await getDb();
+    const streamsCollection = db.collection('streams');
+    const sessionsCollection = db.collection('streamlink_sessions');
+    
+    // Get the stream
+    const stream = await streamsCollection.findOne({ _id: new ObjectId(streamId) });
+    if (!stream) {
+      throw new Error('Stream not found');
+    }
+    
+    // Generate a token
+    const token = crypto.randomUUID();
+    
+    // Set expiry time (4 hours from now)
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 4);
+    
+    // Save the session
+    await sessionsCollection.insertOne({
+      stream_id: streamId,
+      token,
+      expires_at: expiresAt.toISOString(),
+      created_at: new Date().toISOString()
+    });
+    
+    // Generate the proxy URL
+    const proxyUrl = `${STREAMLINK_PROXY_URL}/${streamId}?token=${token}`;
+    
+    return {
+      proxyUrl,
+      token,
+      expiresAt: expiresAt.toISOString(),
+    };
+  } catch (error) {
+    console.error("Error creating streamlink proxy:", error);
+    
+    // Generate a fake token as fallback
+    const token = `mock-${Date.now()}`;
+    const expiresAt = new Date();
+    expiresAt.setHours(expiresAt.getHours() + 4);
+    
+    return {
+      proxyUrl: `${STREAMLINK_PROXY_URL}/${streamId}?token=${token}`,
+      token,
+      expiresAt: expiresAt.toISOString(),
     };
   }
 };
@@ -258,7 +407,7 @@ export const detectStreamerType = (url: string): StreamerType => {
   return 'direct';
 };
 
-// Mock streams for fallback when Supabase is not available
+// Mock streams for fallback when MongoDB is not available
 const mockStreams: Stream[] = [
   {
     id: '1',
