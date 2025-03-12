@@ -36,7 +36,8 @@ import {
 } from "@/components/ui/accordion";
 import { Textarea } from "@/components/ui/textarea";
 
-import { Stream, StreamerType, StreamlinkOptions } from "@/lib/types";
+// Change the import path to use the JS file
+import { Stream } from "@/lib/types.js";
 import { detectStreamerType, isStreamlinkSupported } from "@/lib/api";
 
 const CATEGORIES = [

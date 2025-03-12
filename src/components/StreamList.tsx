@@ -1,7 +1,8 @@
+
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { StreamCard } from "@/components/StreamCard";
-import { Stream } from "@/lib/types";
+import { Stream } from "@/lib/types.js";
 import { AnimatedList } from "@/components/AnimatedTransition";
 import { Search } from "lucide-react";
 

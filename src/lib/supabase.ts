@@ -1,6 +1,5 @@
-
 import { createClient } from '@supabase/supabase-js';
-import type { Stream, SupabaseStream, StreamlinkProxyResponse, StreamlinkSession } from './types';
+import type { Stream, SupabaseStream, StreamlinkProxyResponse, StreamlinkSession } from './types.js';
 
 // Initialize Supabase client
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
