@@ -40,6 +40,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Stream } from "@/lib/types.js";
 import { detectStreamerType, isStreamlinkSupported } from "@/lib/api";
 
+// Define StreamerType locally if needed for TypeScript compatibility
+type StreamerType = 'direct' | 'youtube' | 'twitch' | 'dailymotion' | 'other';
+
 const CATEGORIES = [
   "Sports",
   "News",
