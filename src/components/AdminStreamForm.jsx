@@ -1,15 +1,16 @@
-import { useState, useEffect } from "react";
-import { useForm } from "react-hook-form";
-import { X, Download, ExternalLink, Lock, Code } from "lucide-react";
+
+import React, { useState, useEffect } from "react";
+import { X, Save, Trash2, Link, Image, Info, Globe, CheckCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -17,452 +18,529 @@ import {
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useToast } from "@/hooks/use-toast";
 
-import { Stream, StreamerType, StreamlinkOptions } from "@/lib/types";
+// Import from types.js
 import { detectStreamerType, isStreamlinkSupported } from "@/lib/api";
 
 /**
- * @typedef {import('@/lib/types').Stream} Stream
- * @typedef {import('@/lib/types').StreamerType} StreamerType
- * @typedef {import('@/lib/types').StreamlinkOptions} StreamlinkOptions
+ * @typedef {'direct' | 'youtube' | 'twitch' | 'dailymotion' | 'other'} StreamerType
  */
 
 const CATEGORIES = [
   "Sports",
   "News",
-  "Movies",
   "Entertainment",
-  "Documentaries",
-  "Kids",
+  "Movies",
   "Music",
-  "Gaming",
-  "Other",
+  "Documentary",
+  "Kids",
+  "Science",
+  "Lifestyle",
+  "Other"
 ];
 
-const STREAMER_TYPES = [
-  { value: "direct", label: "Direct URL" },
-  { value: "youtube", label: "YouTube" },
-  { value: "twitch", label: "Twitch" },
-  { value: "dailymotion", label: "Dailymotion" },
-  { value: "other", label: "Other" },
-];
-
-const QUALITY_PRESETS = [
-  { value: "best", label: "Best" },
-  { value: "worst", label: "Worst" },
-  { value: "720p", label: "720p" },
-  { value: "480p", label: "480p" },
-  { value: "360p", label: "360p" },
-  { value: "custom", label: "Custom..." },
-];
+const DEFAULT_STREAM = {
+  name: "",
+  url: "",
+  category: "Other",
+  logo: "",
+  isActive: true,
+  useStreamlink: false,
+  streamerType: "direct",
+  streamlinkOptions: {
+    quality: "best",
+    useProxy: false,
+    secureTokenEnabled: false,
+    customArgs: "",
+    useUserAgent: false,
+    userAgent: ""
+  }
+};
 
 /**
- * @param {Object} props
- * @param {Stream} [props.stream]
- * @param {boolean} props.open
- * @param {function(): void} props.onClose
- * @param {function(Partial<Stream>): void} props.onSave
+ * AdminStreamForm component for adding/editing IPTV streams
+ * 
+ * @param {Object} props - Component props
+ * @param {boolean} props.open - Whether the dialog is open
+ * @param {Function} props.onClose - Function to call when dialog is closed
+ * @param {Function} props.onSave - Function to call when stream is saved
+ * @param {Object} [props.stream] - Stream to edit (undefined for new stream)
  */
-export function AdminStreamForm({
-  stream,
-  open,
-  onClose,
-  onSave,
-}) {
-  const isEdit = !!stream;
+export const AdminStreamForm = ({ stream, open, onClose, onSave }) => {
+  const { toast } = useToast();
+  const [formData, setFormData] = useState(DEFAULT_STREAM);
+  const [loading, setLoading] = useState(false);
+  const [urlTested, setUrlTested] = useState(false);
+  const [streamerTypeDetected, setStreamerTypeDetected] = useState(false);
   
-  const { register, handleSubmit, reset, setValue, watch, getValues } = useForm({
-    defaultValues: {
-      name: stream?.name || "",
-      url: stream?.url || "",
-      category: stream?.category || "Other",
-      logo: stream?.logo || "",
-      isActive: stream?.isActive !== false,
-      useStreamlink: stream?.useStreamlink || false,
-      streamerType: stream?.streamerType || "direct",
-      streamlinkOptions: stream?.streamlinkOptions || {
-        quality: "best",
-        useProxy: true,
-        secureTokenEnabled: true,
-        customArgs: "",
-      },
-    },
-  });
-  
-  const url = watch("url");
-  const category = watch("category");
-  const logo = watch("logo");
-  const useStreamlink = watch("useStreamlink");
-  const streamerType = watch("streamerType");
-  const streamlinkOptions = watch("streamlinkOptions");
-  
-  const [streamlinkSupported, setStreamlinkSupported] = useState(false);
-  const [customQuality, setCustomQuality] = useState(false);
-  
-  // Update streamlink support status when URL changes
-  useEffect(() => {
-    if (url) {
-      const supported = isStreamlinkSupported(url);
-      setStreamlinkSupported(supported);
-      
-      // If the URL suggests a specific streamer type and it's different from the current one
-      if (supported) {
-        const detectedType = detectStreamerType(url);
-        if (detectedType !== streamerType) {
-          setValue("streamerType", detectedType);
-        }
-      }
-    } else {
-      setStreamlinkSupported(false);
-    }
-  }, [url, streamerType, setValue]);
-  
+  // Reset form when dialog opens/closes or stream changes
   useEffect(() => {
     if (open) {
-      reset({
-        name: stream?.name || "",
-        url: stream?.url || "",
-        category: stream?.category || "Other",
-        logo: stream?.logo || "",
-        isActive: stream?.isActive !== false,
-        useStreamlink: stream?.useStreamlink || false,
-        streamerType: stream?.streamerType || "direct",
-        streamlinkOptions: stream?.streamlinkOptions || {
-          quality: "best",
-          useProxy: true,
-          secureTokenEnabled: true,
-          customArgs: "",
-        },
+      if (stream) {
+        // Editing existing stream
+        setFormData({
+          ...DEFAULT_STREAM,
+          ...stream,
+          streamlinkOptions: {
+            ...DEFAULT_STREAM.streamlinkOptions,
+            ...(stream.streamlinkOptions || {})
+          }
+        });
+        setStreamerTypeDetected(true);
+      } else {
+        // Creating new stream
+        setFormData(DEFAULT_STREAM);
+        setStreamerTypeDetected(false);
+      }
+      setUrlTested(false);
+    }
+  }, [open, stream]);
+  
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    
+    if (name === "url" && urlTested) {
+      setUrlTested(false);
+      setStreamerTypeDetected(false);
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value
+    }));
+  };
+  
+  const handleSwitchChange = (name, checked) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: checked
+    }));
+  };
+  
+  const handleStreamlinkOptionsChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      streamlinkOptions: {
+        ...prev.streamlinkOptions,
+        [name]: type === "checkbox" ? checked : value
+      }
+    }));
+  };
+  
+  const handleStreamlinkSwitchChange = (name, checked) => {
+    setFormData(prev => ({
+      ...prev,
+      streamlinkOptions: {
+        ...prev.streamlinkOptions,
+        [name]: checked
+      }
+    }));
+  };
+  
+  const handleSelectChange = (name, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+  
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.name.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a stream name",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.url.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a stream URL",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      await onSave(formData);
+    } catch (error) {
+      console.error("Error saving stream:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save stream. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const detectType = async () => {
+    if (!formData.url.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a stream URL",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      const type = await detectStreamerType(formData.url);
+      
+      setFormData(prev => ({
+        ...prev,
+        streamerType: type,
+        useStreamlink: isStreamlinkSupported(type)
+      }));
+      
+      setStreamerTypeDetected(true);
+      setUrlTested(true);
+      
+      toast({
+        title: "Success",
+        description: `Detected stream type: ${type}`,
+      });
+    } catch (error) {
+      console.error("Error detecting stream type:", error);
+      toast({
+        title: "Error",
+        description: "Failed to detect stream type. Using direct as fallback.",
+        variant: "destructive",
       });
       
-      // Set custom quality state based on existing quality
-      const quality = stream?.streamlinkOptions?.quality || "best";
-      setCustomQuality(!QUALITY_PRESETS.some(preset => preset.value === quality && preset.value !== "custom"));
-      
-      // Check streamlink support for initial URL
-      if (stream?.url) {
-        setStreamlinkSupported(isStreamlinkSupported(stream.url));
-      }
-    }
-  }, [open, stream, reset]);
-  
-  const handleQualityChange = (value) => {
-    setCustomQuality(value === "custom");
-    
-    if (value !== "custom") {
-      setValue("streamlinkOptions.quality", value);
-    } else {
-      setValue("streamlinkOptions.quality", "");
+      setFormData(prev => ({
+        ...prev,
+        streamerType: "direct",
+        useStreamlink: false
+      }));
+    } finally {
+      setLoading(false);
     }
   };
   
-  const onSubmit = (data) => {
-    onSave({
-      ...data,
-      id: stream?.id,
-    });
+  const getStreamerTypeLabel = (type) => {
+    switch (type) {
+      case "youtube": return "YouTube";
+      case "twitch": return "Twitch";
+      case "dailymotion": return "Dailymotion";
+      case "direct": return "Direct Stream";
+      default: return "Other";
+    }
   };
-
+  
   return (
-    <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Stream" : "Add New Stream"}</DialogTitle>
-          <DialogDescription>
-            {isEdit
-              ? "Make changes to the stream details below."
-              : "Enter the details for the new stream."}
-          </DialogDescription>
-        </DialogHeader>
-        
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 py-4">
-          <div className="grid grid-cols-1 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="name">Stream Name</Label>
-              <Input
-                id="name"
-                placeholder="Enter stream name"
-                {...register("name", { required: true })}
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="url">Stream URL</Label>
-              <Input
-                id="url"
-                placeholder="https://example.com/stream"
-                {...register("url", { required: true })}
-              />
-              {streamlinkSupported && (
-                <div className="text-xs text-primary flex items-center gap-1 mt-1">
-                  <Download className="h-3 w-3" />
-                  Streamlink supported for this URL
-                </div>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="category">Category</Label>
-              <Select
-                value={category}
-                onValueChange={(value) => setValue("category", value)}
-              >
-                <SelectTrigger id="category">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    {CATEGORIES.map((cat) => (
-                      <SelectItem key={cat} value={cat}>
-                        {cat}
-                      </SelectItem>
-                    ))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="useStreamlink"
-                  checked={useStreamlink}
-                  onCheckedChange={(checked) => setValue("useStreamlink", checked)}
-                  disabled={!streamlinkSupported}
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <form onSubmit={handleSubmit}>
+          <DialogHeader>
+            <DialogTitle className="text-xl">
+              {stream ? "Edit Stream" : "Add New Stream"}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid gap-6 py-4">
+            {/* Basic Information */}
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Stream Name</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  placeholder="Enter stream name"
                 />
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="useStreamlink">Use Streamlink</Label>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <ExternalLink className="h-4 w-4 text-muted-foreground cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      <p>Streamlink extracts the stream from platforms like YouTube and Twitch. Requires a backend service running Streamlink.</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
               </div>
               
-              {useStreamlink && (
-                <Accordion type="single" collapsible defaultValue="streamerType">
-                  <AccordionItem value="streamerType">
-                    <AccordionTrigger>Streamer Settings</AccordionTrigger>
-                    <AccordionContent>
-                      <div className="space-y-4 pt-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="streamerType">Streamer Type</Label>
-                          <Select
-                            value={streamerType}
-                            onValueChange={(value) => setValue("streamerType", value)}
-                          >
-                            <SelectTrigger id="streamerType">
-                              <SelectValue placeholder="Select streamer type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {STREAMER_TYPES.map((type) => (
-                                  <SelectItem key={type.value} value={type.value}>
-                                    {type.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <Label htmlFor="quality">Stream Quality</Label>
-                          <Select
-                            value={customQuality ? "custom" : (streamlinkOptions?.quality || "best")}
-                            onValueChange={handleQualityChange}
-                          >
-                            <SelectTrigger id="quality">
-                              <SelectValue placeholder="Select quality" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                {QUALITY_PRESETS.map((preset) => (
-                                  <SelectItem key={preset.value} value={preset.value}>
-                                    {preset.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                          
-                          {customQuality && (
-                            <Input
-                              className="mt-2"
-                              placeholder="E.g., 720p,720p60,best"
-                              {...register("streamlinkOptions.quality")}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                  
-                  <AccordionItem value="proxy">
-                    <AccordionTrigger>
-                      <div className="flex items-center gap-2">
-                        <Lock className="h-4 w-4" />
-                        Proxy Settings
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="space-y-4 pt-2">
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="useProxy"
-                            checked={streamlinkOptions?.useProxy}
-                            onCheckedChange={(checked) => 
-                              setValue("streamlinkOptions.useProxy", checked)
-                            }
-                          />
-                          <Label htmlFor="useProxy">Use Secure Proxy</Label>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <ExternalLink className="h-4 w-4 text-muted-foreground cursor-help" />
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              <p>Routes Streamlink traffic through a secure proxy with temporary access tokens.</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </div>
-                        
-                        {streamlinkOptions?.useProxy && (
-                          <div className="flex items-center gap-2">
-                            <Switch
-                              id="secureTokenEnabled"
-                              checked={streamlinkOptions?.secureTokenEnabled}
-                              onCheckedChange={(checked) => 
-                                setValue("streamlinkOptions.secureTokenEnabled", checked)
-                              }
-                            />
-                            <Label htmlFor="secureTokenEnabled">Enable Token Security</Label>
-                          </div>
-                        )}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                  
-                  <AccordionItem value="advanced">
-                    <AccordionTrigger>
-                      <div className="flex items-center gap-2">
-                        <Code className="h-4 w-4" />
-                        Advanced Options
-                      </div>
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      <div className="space-y-4 pt-2">
-                        <div className="space-y-2">
-                          <Label htmlFor="customArgs">Custom Command-line Arguments</Label>
-                          <Textarea
-                            id="customArgs"
-                            placeholder="--player-passthrough=hls,http --http-timeout=60"
-                            {...register("streamlinkOptions.customArgs")}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Additional arguments to pass to Streamlink when starting the stream.
-                          </p>
-                        </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Switch
-                            id="useUserAgent"
-                            checked={streamlinkOptions?.useUserAgent}
-                            onCheckedChange={(checked) => 
-                              setValue("streamlinkOptions.useUserAgent", checked)
-                            }
-                          />
-                          <Label htmlFor="useUserAgent">Custom User-Agent</Label>
-                        </div>
-                        
-                        {streamlinkOptions?.useUserAgent && (
-                          <div className="space-y-2">
-                            <Input
-                              id="userAgent"
-                              placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-                              {...register("streamlinkOptions.userAgent")}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
-              )}
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="logo">Logo URL (Optional)</Label>
-              <div className="flex space-x-2">
-                <div className="flex-1">
-                  <Input
-                    id="logo"
-                    placeholder="https://example.com/logo.png"
-                    {...register("logo")}
-                  />
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="url">Stream URL</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={detectType}
+                    disabled={loading}
+                    className="flex items-center gap-1 text-xs h-7 px-2"
+                  >
+                    {loading ? "Detecting..." : "Detect Type"}
+                    {urlTested && streamerTypeDetected && (
+                      <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                    )}
+                  </Button>
                 </div>
-                {logo && (
-                  <div className="relative h-10 w-10 overflow-hidden rounded border">
-                    <img
-                      src={logo}
-                      alt="Preview"
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        e.target.src = "/placeholder.svg";
-                      }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute top-0 right-0 h-5 w-5 rounded-full bg-background/80"
-                      type="button"
-                      onClick={() => setValue("logo", "")}
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
-                  </div>
-                )}
+                <Input
+                  id="url"
+                  name="url"
+                  value={formData.url}
+                  onChange={handleChange}
+                  placeholder="https://example.com/stream"
+                />
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="category">Category</Label>
+                <Select
+                  value={formData.category}
+                  onValueChange={(value) => handleSelectChange("category", value)}
+                >
+                  <SelectTrigger id="category">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map(category => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="grid gap-2">
+                <Label htmlFor="logo">Logo URL (optional)</Label>
+                <Input
+                  id="logo"
+                  name="logo"
+                  value={formData.logo}
+                  onChange={handleChange}
+                  placeholder="https://example.com/logo.png"
+                />
+              </div>
+              
+              <div className="flex items-center justify-between space-x-2">
+                <div className="flex flex-col space-y-1">
+                  <Label htmlFor="isActive">Active</Label>
+                  <span className="text-sm text-muted-foreground">
+                    Enable or disable this stream
+                  </span>
+                </div>
+                <Switch
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => handleSwitchChange("isActive", checked)}
+                />
               </div>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <Switch
-                id="isActive"
-                checked={watch("isActive")}
-                onCheckedChange={(checked) => setValue("isActive", checked)}
-              />
-              <Label htmlFor="isActive">Active</Label>
-            </div>
+            {/* Stream Type and Streamlink Settings */}
+            <Accordion type="single" collapsible defaultValue="streamType">
+              <AccordionItem value="streamType">
+                <AccordionTrigger>Stream Type Settings</AccordionTrigger>
+                <AccordionContent>
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="streamerType">Stream Type</Label>
+                      <Select
+                        value={formData.streamerType}
+                        onValueChange={(value) => {
+                          handleSelectChange("streamerType", value);
+                          const supportsStreamlink = isStreamlinkSupported(value);
+                          handleSwitchChange("useStreamlink", supportsStreamlink);
+                        }}
+                      >
+                        <SelectTrigger id="streamerType">
+                          <SelectValue placeholder="Select stream type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="direct">Direct Stream</SelectItem>
+                          <SelectItem value="youtube">YouTube</SelectItem>
+                          <SelectItem value="twitch">Twitch</SelectItem>
+                          <SelectItem value="dailymotion">Dailymotion</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex items-center justify-between space-x-2">
+                      <div className="flex flex-col space-y-1">
+                        <Label htmlFor="useStreamlink">
+                          Use Streamlink
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="w-4 h-4 ml-1 inline text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Process stream through Streamlink for better compatibility</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Label>
+                        <span className="text-sm text-muted-foreground">
+                          Recommended for {getStreamerTypeLabel(formData.streamerType)} streams
+                        </span>
+                      </div>
+                      <Switch
+                        id="useStreamlink"
+                        checked={formData.useStreamlink}
+                        onCheckedChange={(checked) => handleSwitchChange("useStreamlink", checked)}
+                      />
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+              
+              {formData.useStreamlink && (
+                <AccordionItem value="streamlinkOptions">
+                  <AccordionTrigger>Streamlink Options</AccordionTrigger>
+                  <AccordionContent>
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="quality">Quality</Label>
+                        <Select
+                          value={formData.streamlinkOptions.quality}
+                          onValueChange={(value) => 
+                            handleSelectChange("streamlinkOptions.quality", value)
+                          }
+                        >
+                          <SelectTrigger id="quality">
+                            <SelectValue placeholder="Select quality" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="best">Best</SelectItem>
+                            <SelectItem value="1080p">1080p</SelectItem>
+                            <SelectItem value="720p">720p</SelectItem>
+                            <SelectItem value="480p">480p</SelectItem>
+                            <SelectItem value="360p">360p</SelectItem>
+                            <SelectItem value="worst">Worst</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="flex items-center justify-between space-x-2">
+                        <div className="flex flex-col space-y-1">
+                          <Label htmlFor="useProxy">Use Proxy</Label>
+                          <span className="text-sm text-muted-foreground">
+                            Route stream through system proxy
+                          </span>
+                        </div>
+                        <Switch
+                          id="useProxy"
+                          name="useProxy"
+                          checked={formData.streamlinkOptions.useProxy}
+                          onCheckedChange={(checked) => 
+                            handleStreamlinkSwitchChange("useProxy", checked)
+                          }
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between space-x-2">
+                        <div className="flex flex-col space-y-1">
+                          <Label htmlFor="secureTokenEnabled">Secure Token</Label>
+                          <span className="text-sm text-muted-foreground">
+                            Enable token security
+                          </span>
+                        </div>
+                        <Switch
+                          id="secureTokenEnabled"
+                          name="secureTokenEnabled"
+                          checked={formData.streamlinkOptions.secureTokenEnabled}
+                          onCheckedChange={(checked) => 
+                            handleStreamlinkSwitchChange("secureTokenEnabled", checked)
+                          }
+                        />
+                      </div>
+                      
+                      <div className="flex items-center justify-between space-x-2">
+                        <div className="flex flex-col space-y-1">
+                          <Label htmlFor="useUserAgent">Custom User-Agent</Label>
+                          <span className="text-sm text-muted-foreground">
+                            Use custom user-agent string
+                          </span>
+                        </div>
+                        <Switch
+                          id="useUserAgent"
+                          name="useUserAgent"
+                          checked={formData.streamlinkOptions.useUserAgent}
+                          onCheckedChange={(checked) => 
+                            handleStreamlinkSwitchChange("useUserAgent", checked)
+                          }
+                        />
+                      </div>
+                      
+                      {formData.streamlinkOptions.useUserAgent && (
+                        <div className="grid gap-2">
+                          <Label htmlFor="userAgent">User-Agent String</Label>
+                          <Input
+                            id="userAgent"
+                            name="userAgent"
+                            value={formData.streamlinkOptions.userAgent}
+                            onChange={handleStreamlinkOptionsChange}
+                            placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64)..."
+                          />
+                        </div>
+                      )}
+                      
+                      <div className="grid gap-2">
+                        <Label htmlFor="customArgs">
+                          Custom Streamlink Arguments
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="w-4 h-4 ml-1 inline text-muted-foreground" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Additional arguments passed to Streamlink</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Label>
+                        <Textarea
+                          id="customArgs"
+                          name="customArgs"
+                          value={formData.streamlinkOptions.customArgs}
+                          onChange={handleStreamlinkOptionsChange}
+                          placeholder="--stream-timeout 60 --http-timeout 60"
+                          className="min-h-[80px]"
+                        />
+                      </div>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              )}
+            </Accordion>
           </div>
           
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} type="button">
               Cancel
             </Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? "Saving..." : "Save Stream"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
   );
-}
+};
+
+export default AdminStreamForm;
