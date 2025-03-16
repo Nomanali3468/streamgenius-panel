@@ -1,4 +1,3 @@
-
 import { getToken } from './auth';
 
 // Streamlink proxy URL from environment
@@ -285,6 +284,42 @@ const mockStreams = [
     name: 'Documentary World',
     url: 'http://example.com/stream5',
     category: 'Documentaries',
+    logo: 'https://via.placeholder.com/150',
+    isActive: true,
+    useStreamlink: false,
+    streamerType: 'direct',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '6',
+    name: 'Movies Channel',
+    url: 'http://example.com/stream6',
+    category: 'Entertainment',
+    logo: 'https://via.placeholder.com/150',
+    isActive: true,
+    useStreamlink: false,
+    streamerType: 'direct',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '7',
+    name: 'Sports Network',
+    url: 'http://example.com/stream7',
+    category: 'Sports',
+    logo: 'https://via.placeholder.com/150',
+    isActive: true,
+    useStreamlink: false,
+    streamerType: 'direct',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: '8',
+    name: 'Daily News',
+    url: 'http://example.com/stream8',
+    category: 'News',
     logo: 'https://via.placeholder.com/150',
     isActive: true,
     useStreamlink: false,

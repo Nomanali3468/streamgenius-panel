@@ -1,11 +1,10 @@
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, FilePlus, Loader2, Plus } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Play, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Header } from "@/components/Header";
-import { StreamList } from "@/components/StreamList";
+import { Input } from "@/components/ui/input";
 import { AdminStreamForm } from "@/components/AdminStreamForm";
 import { AnimatedTransition } from "@/components/AnimatedTransition";
 import { getStreams, createStream, updateStream, deleteStream } from "@/lib/api";
@@ -31,6 +30,8 @@ const Admin = () => {
   const [editingStream, setEditingStream] = useState(undefined);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [streamToDelete, setStreamToDelete] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(null);
   
   useEffect(() => {
     // Check if user is authenticated and is admin
@@ -135,6 +136,15 @@ const Admin = () => {
     }
   };
 
+  const categories = [...new Set(streams.map(stream => stream.category))];
+  
+  const filteredStreams = streams.filter(stream => {
+    const matchesSearch = stream.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        stream.url.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory ? stream.category === selectedCategory : true;
+    return matchesSearch && matchesCategory;
+  });
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
@@ -145,25 +155,76 @@ const Admin = () => {
   }
 
   return (
-    <>
-      <Header />
-      <main className="pt-28 pb-16 px-4 container mx-auto">
-        <AnimatedTransition>
-          <section className="mb-12">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-medium">Admin Dashboard</h1>
-              <Button onClick={handleAddStream}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Stream
-              </Button>
+    <div className="flex flex-col min-h-screen bg-gray-100">
+      <div className="bg-white shadow-sm py-4 px-4 sticky top-0 z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="text-primary mr-2">
+              <Play className="h-8 w-8 fill-primary" />
             </div>
-            
-            <StreamList 
-              streams={streams} 
-              onEditStream={handleEditStream}
-              onDeleteStream={handleDeleteStream}
-            />
-          </section>
+            <div>
+              <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+              <p className="text-gray-500 text-sm">StreamGenius</p>
+            </div>
+          </div>
+          <Button onClick={handleAddStream} className="bg-blue-500 hover:bg-blue-600">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Stream
+          </Button>
+        </div>
+        <div className="mt-4 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search streams..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 w-full"
+          />
+        </div>
+        <div className="flex gap-2 overflow-x-auto py-4 -mx-4 px-4">
+          <button
+            onClick={() => setSelectedCategory(null)}
+            className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
+              selectedCategory === null
+                ? "bg-primary text-white font-medium"
+                : "bg-gray-200 text-gray-800 hover:bg-gray-300"
+            }`}
+          >
+            All
+          </button>
+          {categories.map(category => (
+            <button
+              key={category}
+              onClick={() => setSelectedCategory(category)}
+              className={`px-4 py-2 rounded-full whitespace-nowrap transition-colors ${
+                selectedCategory === category
+                  ? "bg-primary text-white font-medium"
+                  : "bg-gray-200 text-gray-800 hover:bg-gray-300"
+              }`}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+      </div>
+      
+      <main className="flex-1 p-4">
+        <AnimatedTransition>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
+            {filteredStreams.map(stream => (
+              <AdminStreamCard 
+                key={stream.id} 
+                stream={stream} 
+                onEdit={handleEditStream}
+                onDelete={handleDeleteStream}
+              />
+            ))}
+          </div>
+          {filteredStreams.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No streams found</p>
+            </div>
+          )}
         </AnimatedTransition>
       </main>
       
@@ -197,7 +258,59 @@ const Admin = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </>
+    </div>
+  );
+};
+
+// Admin Stream Card Component
+const AdminStreamCard = ({ stream, onEdit, onDelete }) => {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
+  const handleImageLoad = () => {
+    setImageLoaded(true);
+  };
+  
+  const handleImageError = () => {
+    setImageError(true);
+  };
+  
+  const fallbackImage = `/placeholder.svg`;
+
+  return (
+    <div className="bg-white rounded-lg overflow-hidden shadow-sm">
+      <div className="relative aspect-video bg-muted">
+        {!imageLoaded && !imageError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted">
+            <div className="h-8 w-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        <img
+          src={imageError ? fallbackImage : (stream.logo || fallbackImage)}
+          alt={stream.name}
+          className={`w-full h-full object-cover transition-opacity ${
+            imageLoaded ? "opacity-100" : "opacity-0"
+          }`}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
+        <div className="absolute top-2 right-2">
+          <span className="inline-flex items-center rounded-full bg-white px-2.5 py-0.5 text-xs font-medium">
+            {stream.category}
+          </span>
+        </div>
+        <button 
+          onClick={() => onEdit(stream)}
+          className="absolute top-2 left-2 h-8 w-8 bg-black/30 rounded-full flex items-center justify-center text-white hover:bg-black/50"
+        >
+          <span className="text-sm">•••</span>
+        </button>
+      </div>
+      <div className="p-4">
+        <h3 className="font-medium text-lg line-clamp-1">{stream.name}</h3>
+        <p className="text-gray-500 text-sm line-clamp-1">{stream.url}</p>
+      </div>
+    </div>
   );
 };
 
