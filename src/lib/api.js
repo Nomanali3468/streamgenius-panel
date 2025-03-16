@@ -1,12 +1,10 @@
 
 import { getToken } from './auth';
-import { getDb, normalizeId } from './mongodb';
-import { ObjectId } from 'mongodb';
 
 // Streamlink proxy URL from environment
 const STREAMLINK_PROXY_URL = import.meta.env.VITE_STREAMLINK_PROXY_URL || 'http://localhost:3001/api/proxy/streamlink';
 
-// Helper function to simulate API request for mock data fallback
+// Helper function to simulate API request for mock data
 const simulateRequest = (data, delay = 500) => {
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -63,10 +61,10 @@ const getStreamlinkUrl = async (stream) => {
   return `${STREAMLINK_PROXY_URL}?${params.toString()}`;
 };
 
-// Mock API functions - these will use MongoDB when available
+// API functions now use mock data directly instead of MongoDB
 
 export const login = async (username, password) => {
-  // In a real app, this would be an actual API call to MongoDB
+  // In a real app, this would be an actual API call
   if (username === 'admin' && password === 'admin') {
     return simulateRequest({
       user: {
@@ -94,278 +92,99 @@ export const login = async (username, password) => {
 };
 
 export const getStreams = async () => {
-  try {
-    const db = await getDb();
-    const streamsCollection = db.collection('streams');
-    const streams = await streamsCollection.find({}).toArray();
-    
-    return streams.map(stream => {
-      const normalized = normalizeId(stream);
-      return {
-        ...normalized,
-        streamlinkOptions: normalized.streamlinkOptions ?? undefined,
-        createdAt: normalized.createdAt ?? new Date().toISOString(),
-        updatedAt: normalized.updatedAt ?? new Date().toISOString(),
-      };
-    });
-  } catch (error) {
-    console.error("Error fetching streams from MongoDB:", error);
-    // Fallback to mock data
-    return simulateRequest(mockStreams);
-  }
+  return simulateRequest(mockStreams);
 };
 
 export const getStream = async (id) => {
-  try {
-    const db = await getDb();
-    const streamsCollection = db.collection('streams');
-    const stream = await streamsCollection.findOne({ _id: new ObjectId(id) });
-    
-    if (!stream) {
-      throw new Error('Stream not found');
-    }
-    
-    const normalized = normalizeId(stream);
-    return {
-      ...normalized,
-      streamlinkOptions: normalized.streamlinkOptions ?? undefined,
-      createdAt: normalized.createdAt ?? new Date().toISOString(),
-      updatedAt: normalized.updatedAt ?? new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error("Error fetching stream from MongoDB:", error);
-    // Fallback to mock data
-    const stream = mockStreams.find(s => s.id === id);
-    if (!stream) {
-      return Promise.reject(new Error('Stream not found'));
-    }
-    return simulateRequest(stream);
+  const stream = mockStreams.find(s => s.id === id);
+  if (!stream) {
+    return Promise.reject(new Error('Stream not found'));
   }
+  return simulateRequest(stream);
 };
 
 export const createStream = async (stream) => {
-  try {
-    const db = await getDb();
-    const streamsCollection = db.collection('streams');
-    
-    const now = new Date().toISOString();
-    const newStream = {
-      ...stream,
-      createdAt: now,
-      updatedAt: now
-    };
-    
-    const result = await streamsCollection.insertOne(newStream);
-    
-    return {
-      ...newStream,
-      id: result.insertedId.toString()
-    };
-  } catch (error) {
-    console.error("Error creating stream in MongoDB:", error);
-    // Fallback to mock behavior
-    const newStream = {
-      ...stream,
-      id: Date.now().toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    
-    return simulateRequest(newStream);
-  }
+  const newStream = {
+    ...stream,
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  
+  mockStreams.push(newStream);
+  return simulateRequest(newStream);
 };
 
 export const updateStream = async (id, stream) => {
-  try {
-    const db = await getDb();
-    const streamsCollection = db.collection('streams');
-    
-    // Remove id from the update object as it should not be modified
-    const { id: _, ...updateData } = stream;
-    
-    const now = new Date().toISOString();
-    const result = await streamsCollection.findOneAndUpdate(
-      { _id: new ObjectId(id) },
-      { $set: { ...updateData, updatedAt: now } },
-      { returnDocument: 'after' }
-    );
-    
-    if (!result) {
-      throw new Error('Stream not found');
-    }
-    
-    const normalized = normalizeId(result);
-    return {
-      ...normalized,
-      streamlinkOptions: normalized.streamlinkOptions ?? undefined,
-      createdAt: normalized.createdAt ?? now,
-      updatedAt: now,
-    };
-  } catch (error) {
-    console.error("Error updating stream in MongoDB:", error);
-    // Fallback to mock behavior
-    const existingStream = mockStreams.find(s => s.id === id);
-    if (!existingStream) {
-      return Promise.reject(new Error('Stream not found'));
-    }
-    
-    const updatedStream = {
-      ...existingStream,
-      ...stream,
-      updatedAt: new Date().toISOString(),
-    };
-    
-    return simulateRequest(updatedStream);
+  const index = mockStreams.findIndex(s => s.id === id);
+  if (index === -1) {
+    return Promise.reject(new Error('Stream not found'));
   }
+  
+  const updatedStream = {
+    ...mockStreams[index],
+    ...stream,
+    updatedAt: new Date().toISOString(),
+  };
+  
+  mockStreams[index] = updatedStream;
+  return simulateRequest(updatedStream);
 };
 
 export const deleteStream = async (id) => {
-  try {
-    const db = await getDb();
-    const streamsCollection = db.collection('streams');
-    const result = await streamsCollection.deleteOne({ _id: new ObjectId(id) });
-    
-    if (result.deletedCount === 0) {
-      throw new Error('Stream not found');
-    }
-  } catch (error) {
-    console.error("Error deleting stream from MongoDB:", error);
-    // Fallback to mock behavior
-    return simulateRequest(undefined);
+  const index = mockStreams.findIndex(s => s.id === id);
+  if (index === -1) {
+    return Promise.reject(new Error('Stream not found'));
   }
+  
+  mockStreams.splice(index, 1);
+  return simulateRequest(undefined);
 };
 
 export const generateM3U = async () => {
-  try {
-    // Get all active streams
-    const db = await getDb();
-    const streamsCollection = db.collection('streams');
-    const streams = await streamsCollection.find({ isActive: true }).toArray();
+  let content = '#EXTM3U\n';
+  
+  const streams = mockStreams.filter(stream => stream.isActive);
+  
+  for (const stream of streams) {
+    // Get the appropriate URL (streamlink or direct)
+    const streamUrl = stream.useStreamlink 
+      ? await getStreamlinkUrl(stream) 
+      : stream.url;
     
-    let content = '#EXTM3U\n';
-
-    // Normalize MongoDB documents
-    const normalizedStreams = streams.map(stream => {
-      const normalized = normalizeId(stream);
-      return {
-        ...normalized,
-        streamlinkOptions: normalized.streamlinkOptions ?? undefined,
-      };
-    });
-    
-    // Generate entries for each stream
-    for (const stream of normalizedStreams) {
-      if (!stream.isActive) continue;
-      
-      // Get the appropriate URL (streamlink or direct)
-      const streamUrl = stream.useStreamlink 
-        ? await getStreamlinkUrl(stream) 
-        : stream.url;
-      
-      // Add comment line for Streamlink-proxy streams to help with debugging
-      if (stream.useStreamlink && stream.streamlinkOptions?.useProxy) {
-        content += `#EXTVLCOPT:http-referrer=${stream.url}\n`;
-        content += `#EXTVLCOPT:network-caching=1000\n`;
-      }
-      
-      content += `#EXTINF:-1 tvg-id="${stream.id}" tvg-name="${stream.name}" tvg-logo="${stream.logo || ''}" group-title="${stream.category}",${stream.name}\n`;
-      content += `${streamUrl}\n`;
+    // Add comment line for Streamlink-proxy streams to help with debugging
+    if (stream.useStreamlink && stream.streamlinkOptions?.useProxy) {
+      content += `#EXTVLCOPT:http-referrer=${stream.url}\n`;
+      content += `#EXTVLCOPT:network-caching=1000\n`;
     }
     
-    return {
-      content,
-      filename: `iptv-playlist-${new Date().toISOString().split('T')[0]}.m3u`
-    };
-  } catch (error) {
-    console.error("Error generating M3U:", error);
-    
-    // Fallback to client-side generation with mock data
-    let content = '#EXTM3U\n';
-    
-    const streams = await getStreams();
-    
-    for (const stream of streams) {
-      if (!stream.isActive) continue;
-      
-      // Get the appropriate URL (streamlink or direct)
-      const streamUrl = stream.useStreamlink 
-        ? await getStreamlinkUrl(stream) 
-        : stream.url;
-      
-      // Add comment line for Streamlink-proxy streams to help with debugging
-      if (stream.useStreamlink && stream.streamlinkOptions?.useProxy) {
-        content += `#EXTVLCOPT:http-referrer=${stream.url}\n`;
-        content += `#EXTVLCOPT:network-caching=1000\n`;
-      }
-      
-      content += `#EXTINF:-1 tvg-id="${stream.id}" tvg-name="${stream.name}" tvg-logo="${stream.logo || ''}" group-title="${stream.category}",${stream.name}\n`;
-      content += `${streamUrl}\n`;
-    }
-    
-    return {
-      content,
-      filename: `iptv-playlist-${new Date().toISOString().split('T')[0]}.m3u`
-    };
+    content += `#EXTINF:-1 tvg-id="${stream.id}" tvg-name="${stream.name}" tvg-logo="${stream.logo || ''}" group-title="${stream.category}",${stream.name}\n`;
+    content += `${streamUrl}\n`;
   }
+  
+  return {
+    content,
+    filename: `iptv-playlist-${new Date().toISOString().split('T')[0]}.m3u`
+  };
 };
 
 // Create a streamlink proxy token for a stream
 export const createStreamlinkProxy = async (streamId) => {
-  try {
-    const db = await getDb();
-    const streamsCollection = db.collection('streams');
-    const sessionsCollection = db.collection('streamlink_sessions');
-    
-    // Get the stream
-    const stream = await streamsCollection.findOne({ _id: new ObjectId(streamId) });
-    if (!stream) {
-      throw new Error('Stream not found');
-    }
-    
-    // Generate a token
-    const token = crypto.randomUUID();
-    
-    // Set expiry time (4 hours from now)
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 4);
-    
-    // Save the session
-    await sessionsCollection.insertOne({
-      stream_id: streamId,
-      token,
-      expires_at: expiresAt.toISOString(),
-      created_at: new Date().toISOString()
-    });
-    
-    // Generate the proxy URL
-    const proxyUrl = `${STREAMLINK_PROXY_URL}/${streamId}?token=${token}`;
-    
-    return {
-      proxyUrl,
-      token,
-      expiresAt: expiresAt.toISOString(),
-    };
-  } catch (error) {
-    console.error("Error creating streamlink proxy:", error);
-    
-    // Generate a fake token as fallback
-    const token = `mock-${Date.now()}`;
-    const expiresAt = new Date();
-    expiresAt.setHours(expiresAt.getHours() + 4);
-    
-    return {
-      proxyUrl: `${STREAMLINK_PROXY_URL}/${streamId}?token=${token}`,
-      token,
-      expiresAt: expiresAt.toISOString(),
-    };
-  }
+  // Generate a fake token as mock implementation
+  const token = `mock-${Date.now()}`;
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 4);
+  
+  return {
+    proxyUrl: `${STREAMLINK_PROXY_URL}/${streamId}?token=${token}`,
+    token,
+    expiresAt: expiresAt.toISOString(),
+  };
 };
 
 // Function to check if Streamlink is supported for a specific URL
 export const isStreamlinkSupported = (url) => {
   // Check if the URL is from a supported streamer
-  // This is a simplified check - in a real application, you would have 
-  // more comprehensive detection logic
   if (url.includes('youtube.com') || url.includes('youtu.be')) {
     return true;
   }
@@ -400,7 +219,7 @@ export const detectStreamerType = (url) => {
   return 'direct';
 };
 
-// Mock streams for fallback when MongoDB is not available
+// Mock streams data
 const mockStreams = [
   {
     id: '1',

@@ -1,32 +1,57 @@
 
 const express = require('express');
-const { MongoClient, ObjectId } = require('mongodb');
 const { spawn } = require('child_process');
 const http = require('http');
 const cors = require('cors');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection
-const uri = process.env.MONGODB_URI || "mongodb://localhost:27017";
-const client = new MongoClient(uri);
-let db;
-
-async function connectToMongo() {
-  try {
-    await client.connect();
-    db = client.db('stream-genius');
-    console.log('Connected to MongoDB');
-  } catch (err) {
-    console.error('MongoDB connection error:', err);
-  }
-}
-
-// Connect to MongoDB on startup
-connectToMongo();
+// In-memory storage to replace MongoDB
+const db = {
+  streams: [
+    {
+      _id: '1',
+      name: 'Sports Channel',
+      url: 'http://example.com/stream1',
+      category: 'Sports',
+      logo: 'https://via.placeholder.com/150',
+      isActive: true,
+      useStreamlink: false,
+      streamerType: 'direct',
+    },
+    {
+      _id: '2',
+      name: 'News Network',
+      url: 'http://example.com/stream2',
+      category: 'News',
+      logo: 'https://via.placeholder.com/150',
+      isActive: true,
+      useStreamlink: false,
+      streamerType: 'direct',
+    },
+    {
+      _id: '3',
+      name: 'YouTube Live',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      category: 'Entertainment',
+      logo: 'https://via.placeholder.com/150',
+      isActive: true,
+      useStreamlink: true,
+      streamerType: 'youtube',
+      streamlinkOptions: {
+        quality: 'best',
+        useProxy: true,
+        secureTokenEnabled: true,
+        customArgs: '--player-passthrough=hls'
+      },
+    },
+  ],
+  streamlink_sessions: []
+};
 
 // Streamlink proxy route with token authentication
 app.get('/api/proxy/streamlink/:streamId', async (req, res) => {
@@ -39,13 +64,9 @@ app.get('/api/proxy/streamlink/:streamId', async (req, res) => {
     }
     
     // Validate token
-    const sessionCollection = db.collection('streamlink_sessions');
-    const streamCollection = db.collection('streams');
-    
-    const session = await sessionCollection.findOne({ 
-      stream_id: streamId,
-      token: token
-    });
+    const session = db.streamlink_sessions.find(s => 
+      s.stream_id === streamId && s.token === token
+    );
     
     if (!session) {
       return res.status(401).json({ error: 'Invalid token' });
@@ -57,7 +78,7 @@ app.get('/api/proxy/streamlink/:streamId', async (req, res) => {
     }
     
     // Get the stream
-    const stream = await streamCollection.findOne({ _id: new ObjectId(streamId) });
+    const stream = db.streams.find(s => s._id === streamId);
     if (!stream) {
       return res.status(404).json({ error: 'Stream not found' });
     }
@@ -168,23 +189,21 @@ app.post('/api/proxy/token', async (req, res) => {
     }
     
     // Get the stream
-    const streamCollection = db.collection('streams');
-    const stream = await streamCollection.findOne({ _id: new ObjectId(streamId) });
+    const stream = db.streams.find(s => s._id === streamId);
     
     if (!stream) {
       return res.status(404).json({ error: 'Stream not found' });
     }
     
     // Generate a token
-    const token = require('crypto').randomUUID();
+    const token = crypto.randomUUID();
     
     // Set expiry time (4 hours from now)
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 4);
     
     // Save the session
-    const sessionCollection = db.collection('streamlink_sessions');
-    await sessionCollection.insertOne({
+    db.streamlink_sessions.push({
       stream_id: streamId,
       token,
       expires_at: expiresAt,
@@ -211,8 +230,7 @@ app.post('/api/proxy/token', async (req, res) => {
 app.get('/api/generate-m3u', async (req, res) => {
   try {
     // Get all active streams
-    const streamCollection = db.collection('streams');
-    const streams = await streamCollection.find({ isActive: true }).toArray();
+    const streams = db.streams.filter(s => s.isActive);
     
     let content = '#EXTM3U\n';
     
@@ -221,15 +239,14 @@ app.get('/api/generate-m3u', async (req, res) => {
     for (const stream of streams) {
       // If using streamlink with proxy, generate secure token
       if (stream.useStreamlink && stream.streamlinkOptions?.useProxy && stream.streamlinkOptions?.secureTokenEnabled) {
-        const token = require('crypto').randomUUID();
+        const token = crypto.randomUUID();
         
         // Set expiry time (24 hours from now for M3U playlists)
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24);
         
         // Save the session to the database
-        const sessionCollection = db.collection('streamlink_sessions');
-        await sessionCollection.insertOne({
+        db.streamlink_sessions.push({
           stream_id: stream._id.toString(),
           token,
           expires_at: expiresAt,
